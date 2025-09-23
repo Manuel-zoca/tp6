@@ -1,3 +1,4 @@
+// handlers/grupoGatekeeper.js
 /**
  * Controla o estado de abertura/fechamento do grupo manualmente
  * @param {Object} sock - Instância do socket do Baileys
@@ -61,22 +62,24 @@ async function handleGrupoGatekeeper(sock, msg, allowedGroups) {
  * @param {Array} allowedGroups - Lista de IDs de grupos autorizados
  */
 function scheduleGroupAutomation(sock, allowedGroups) {
-    // Configuração de horários — ALTERE AQUI!
+    // Configuração de horários — ALTERE AQUI se precisar
     const SCHEDULE = {
-        CLOSE: { hours: 6, minutes: 30 }, // ⬅️ FECHA às 11:55
-        OPEN:  { hours: 22, minutes: 30 }  // ⬅️ ABRE às 11:58
+        OPEN:  { hours: 6,  minutes: 30 }, // ⬅️ Abre às 06:30 (Maputo)
+        CLOSE: { hours: 22, minutes: 30 }  // ⬅️ Fecha às 22:30 (Maputo)
     };
 
     /**
-     * Obtém a hora e minuto atual em Maputo (UTC+2)
+     * Obtém a hora e minuto atual em Maputo (Africa/Maputo)
      * @returns {{ hours: number, minutes: number }}
      */
     const getMaputoTime = () => {
-        const maputoTime = new Date().toLocaleString("en-US", { timeZone: "Africa/Maputo" });
-        const date = new Date(maputoTime);
+        const date = new Date();
+        // converte para string com timezone e recria Date para garantir compatibilidade em Node
+        const maputoStr = date.toLocaleString("en-US", { timeZone: "Africa/Maputo" });
+        const maputoDate = new Date(maputoStr);
         return {
-            hours: date.getHours(),
-            minutes: date.getMinutes()
+            hours: maputoDate.getHours(),
+            minutes: maputoDate.getMinutes()
         };
     };
 
@@ -92,14 +95,15 @@ function scheduleGroupAutomation(sock, allowedGroups) {
         if (lastProcessedTime === timeKey) return;
         lastProcessedTime = timeKey;
 
-        // Verifica se é horário de fechar
+        // FECHAR: se for horário de fechar
         if (now.hours === SCHEDULE.CLOSE.hours && now.minutes === SCHEDULE.CLOSE.minutes) {
             for (const groupId of allowedGroups) {
                 try {
                     const groupData = await sock.groupMetadata(groupId);
-                    console.log(`[DEBUG] Estado atual do grupo ${groupId}: ${groupData.announce ? '🔒 FECHADO' : '🔓 ABERTO'}`);
+                    const isClosed = !!groupData?.announce; // announce = true => anúncio (fechado)
+                    console.log(`[DEBUG] Estado atual do grupo ${groupId}: ${isClosed ? '🔒 FECHADO' : '🔓 ABERTO'}`);
 
-                    if (groupData.announce) {
+                    if (isClosed) {
                         console.log(`[INFO] Grupo ${groupId} já está fechado. Pulando...`);
                         continue;
                     }
@@ -109,62 +113,39 @@ function scheduleGroupAutomation(sock, allowedGroups) {
                     await sock.sendMessage(groupId, {
                         text: `🌙 *Grupo fechado automaticamente*\n\n📞 *Se precisar dos nossos serviços, ligue:* *848619531*`
                     });
-                    console.log(`[${new Date().toLocaleString()}] ✅ Grupo fechado automaticamente: ${groupId}`);
+                    console.log(`${new Date().toLocaleString()} ✅ Grupo fechado automaticamente: ${groupId}`);
                 } catch (err) {
                     console.error(`❌ Falha ao fechar grupo ${groupId}:`, err.message);
                 }
             }
         }
-        // Verifica se é horário de abrir
-       // Verifica se é horário de fechar
-if (now.hours === SCHEDULE.CLOSE.hours && now.minutes === SCHEDULE.CLOSE.minutes) {
-    for (const groupId of allowedGroups) {
-        try {
-            const groupData = await sock.groupMetadata(groupId);
-            console.log(`[DEBUG] Estado atual do grupo ${groupId}: ${groupData.announce ? '🔒 FECHADO' : '🔓 ABERTO'}`);
+        // ABRIR: se for horário de abrir
+        else if (now.hours === SCHEDULE.OPEN.hours && now.minutes === SCHEDULE.OPEN.minutes) {
+            for (const groupId of allowedGroups) {
+                try {
+                    const groupData = await sock.groupMetadata(groupId);
+                    const isClosed = !!groupData?.announce;
+                    console.log(`[DEBUG] Estado atual do grupo ${groupId}: ${isClosed ? '🔒 FECHADO' : '🔓 ABERTO'}`);
 
-            if (groupData.announce) {
-                console.log(`[INFO] Grupo ${groupId} já está fechado. Pulando...`);
-                continue;
+                    if (!isClosed) {
+                        console.log(`[INFO] Grupo ${groupId} já está aberto. Pulando...`);
+                        continue;
+                    }
+
+                    // ✅ Abrir grupo
+                    await sock.groupSettingUpdate(groupId, "not_announcement");
+                    await sock.sendMessage(groupId, {
+                        text: `☀️ *Grupo aberto automaticamente*\n\n🛒 *Já podemos fazer os pedidos!*`
+                    });
+                    console.log(`${new Date().toLocaleString()} ✅ Grupo aberto automaticamente: ${groupId}`);
+                } catch (err) {
+                    console.error(`❌ Falha ao abrir grupo ${groupId}:`, err.message);
+                }
             }
-
-            // ✅ Fechar grupo
-            await sock.groupSettingUpdate(groupId, "announcement");
-            await sock.sendMessage(groupId, {
-                text: `🌙 *Grupo fechado automaticamente*\n\n📞 *Se precisar dos nossos serviços, ligue:* *848619531*`
-            });
-            console.log(`[${new Date().toLocaleString()}] ✅ Grupo fechado automaticamente: ${groupId}`);
-        } catch (err) {
-            console.error(`❌ Falha ao fechar grupo ${groupId}:`, err.message);
         }
-    }
-}
-// Verifica se é horário de abrir
-else if (now.hours === SCHEDULE.OPEN.hours && now.minutes === SCHEDULE.OPEN.minutes) {
-    for (const groupId of allowedGroups) {
-        try {
-            const groupData = await sock.groupMetadata(groupId);
-            console.log(`[DEBUG] Estado atual do grupo ${groupId}: ${groupData.announce ? '🔒 FECHADO' : '🔓 ABERTO'}`);
+    }, 60 * 1000); // Verifica a cada 1 minuto
 
-            if (!groupData.announce) {
-                console.log(`[INFO] Grupo ${groupId} já está aberto. Pulando...`);
-                continue;
-            }
-
-            // ✅ Abrir grupo
-            await sock.groupSettingUpdate(groupId, "not_announcement");
-            await sock.sendMessage(groupId, {
-                text: `☀️ *Grupo aberto automaticamente*\n\n🛒 *Já podemos fazer os pedidos!*`
-            });
-            console.log(`[${new Date().toLocaleString()}] ✅ Grupo aberto automaticamente: ${groupId}`);
-        } catch (err) {
-            console.error(`❌ Falha ao abrir grupo ${groupId}:`, err.message);
-        }
-    }
-}
-   }, 60000); // Verifica a cada 1 minuto
-
-    console.log(`⏰ Sistema de automação de grupos ativado (Fechamento: ${SCHEDULE.CLOSE.hours}:${String(SCHEDULE.CLOSE.minutes).padStart(2, '0')} | Abertura: ${SCHEDULE.OPEN.hours}:${String(SCHEDULE.OPEN.minutes).padStart(2, '0')} - Horário de Maputo)`);
+    console.log(`⏰ Sistema de automação de grupos ativado (Abertura: ${String(SCHEDULE.OPEN.hours).padStart(2,'0')}:${String(SCHEDULE.OPEN.minutes).padStart(2,'0')} | Fechamento: ${String(SCHEDULE.CLOSE.hours).padStart(2,'0')}:${String(SCHEDULE.CLOSE.minutes).padStart(2,'0')} - Horário de Maputo)`);
 }
 
 module.exports = { handleGrupoGatekeeper, scheduleGroupAutomation };
