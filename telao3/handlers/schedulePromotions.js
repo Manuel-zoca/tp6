@@ -4,7 +4,6 @@ const cron = require("cron");
 
 /**
  * Função principal que envia promoções para grupos em horários agendados.
- * Os IDs dos grupos serão importados de um array externo (ex: index.js ou groups.js).
  * @param {Object} sock - Instância do Baileys
  * @param {Array<string>} groupIds - Lista de IDs dos grupos para envio (máx. 4)
  */
@@ -14,13 +13,16 @@ async function schedulePromotions(sock, groupIds) {
 
     // ⏰ Definir horários de execução (4x ao dia) - formato: minuto hora * * *
     const cronTimes = [
-        "32 6 * * *",   // 10:35
-        "35 12 * * *",   // 12:35
-        "35 14 * * *",   // 17:35
-        "35 17 * * *",   // 21:35
-        "35 20 * * *",   // 21:35
-        "20 22 * * *",   // 21:35
+        "32 6 * * *",   // 06:32
+        "35 12 * * *",  // 12:35
+        "35 14 * * *",  // 14:35
+        "35 17 * * *",  // 17:35
+        "35 20 * * *",  // 20:35
+        "20 22 * * *",  // 22:20
     ];
+
+    // Função auxiliar para esperar
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     cronTimes.forEach(cronTime => {
         new cron.CronJob(cronTime, async () => {
@@ -35,7 +37,7 @@ async function schedulePromotions(sock, groupIds) {
                     const groupMetadata = await sock.groupMetadata(groupId).catch(() => null);
                     if (!groupMetadata) {
                         console.warn(`[PROMO] ⚠️ Não consegui carregar os dados do grupo ${groupId}`);
-                        continue; // Pula para o próximo grupo
+                        continue;
                     }
                     const mentions = groupMetadata.participants.map(p => p.id);
 
@@ -43,9 +45,6 @@ async function schedulePromotions(sock, groupIds) {
                     const tabelaImg = path.join(__dirname, "../fotos/tabela.jpg");
                     const ilimitadoImg = path.join(__dirname, "../fotos/ilimitado.png");
                     const netflixImg = path.join(__dirname, "../fotos/Netflix.jpeg");
-
-                    // ⏳ Função auxiliar para esperar
-                    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
                     // 1️⃣ Envia tabela de pacotes
                     if (fs.existsSync(tabelaImg)) {
@@ -109,14 +108,18 @@ Após efetuar o pagamento, por favor, envie o comprovante da transferência junt
                 } catch (err) {
                     console.error(`❌ Erro ao enviar promoções para ${groupId}:`, err.message);
                 }
+
+                // Espera 60 segundos antes de passar para o próximo grupo
+                console.log(`[PROMO] ⏳ Aguardando 60s antes de enviar para o próximo grupo...`);
+                await sleep(60000);
             }
 
             console.log(`[PROMO SCHEDULER] ✅ Ciclo de disparos concluído às ${now} (Horário de Moçambique)`);
 
-        }, null, true, "Africa/Maputo"); // ✅ FUSO HORÁRIO CORRETO PARA MOÇAMBIQUE
+        }, null, true, "Africa/Maputo"); // ✅ Fuso horário Moçambique
     });
 
-    console.log(`[PROMO SCHEDULER] ✅ Agendamento configurado para 4x ao dia nos horários: 10:35, 12:35, 17:35, 21:35 (África/Maputo)`);
+    console.log(`[PROMO SCHEDULER] ✅ Agendamento configurado para os horários: ${cronTimes.join(", ")}`);
     console.log(`[PROMO SCHEDULER] 📩 Grupos alvo:`, targetGroups);
 }
 
