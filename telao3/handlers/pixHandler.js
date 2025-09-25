@@ -17,7 +17,7 @@ function detectarTipoPagamento(texto, numero) {
   const textoLower = texto.toLowerCase();
   if (
     (textoLower.includes("confirmado") && textoLower.includes("transferiste") && textoLower.includes("m-pesa")) ||
-    textoLower.includes("dinis") || 
+    textoLower.includes("manuel") || 
     textoLower.includes("continua a transferir") || 
     textoLower.includes("m-pesa")
   ) {
@@ -68,6 +68,9 @@ exports.handleMensagemPix = async (sock, msg) => {
       "120363401150279870@g.us",
       "120363252308434038@g.us",
       "120363417514741662@g.us"
+      "120363281867895477@g.us",
+      "120363393526547408@g.us",
+      "120363280798975952@g.us"
     ];
 
     if (!gruposPermitidos.includes(from)) {
@@ -140,7 +143,7 @@ exports.handleMensagemPix = async (sock, msg) => {
       await new Promise(resolve => setTimeout(resolve, 20000));
 
       await sock.sendMessage(from, {
-        text: `🚫 *Comprovante rejeitado!*\n\nO número para qual foi feita a transferência *é inválido*.\n\n📱 Apenas aceitamos transferências para:\n- *848619531* 📱 (Dinis Marta)\n- *872960710* 💸 (Manuel Zoca)\n\n❗️Tentativas de fraude resultarão em *banimento imediato*!`,
+        text: `🚫 *Comprovante rejeitado!*\n\nO número para qual foi feita a transferência *é inválido*.\n\n📱 Apenas aceitamos transferências para:\n- *851470605* 📱 (Manuel Zoca)\n- *872960710* 💸 (Manuel Zoca)\n\n❗️Tentativas de fraude resultarão em *banimento imediato*!`,
         contextInfo: {
           quotedMessage,
           participant: remetente
@@ -195,4 +198,5 @@ exports.handleMensagemPix = async (sock, msg) => {
     const chaveUnica = `${msg.key.remoteJid}:${msg.key.participant || msg.key.remoteJid}:${msg.key.id}`;
     mensagensProcessadas.delete(chaveUnica);
   }
+
 };
