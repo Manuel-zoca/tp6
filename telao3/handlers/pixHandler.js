@@ -17,16 +17,16 @@ function detectarTipoPagamento(texto, numero) {
   const textoLower = texto.toLowerCase();
   if (
     (textoLower.includes("confirmado") && textoLower.includes("transferiste") && textoLower.includes("m-pesa")) ||
-    textoLower.includes("manuel") || 
-    textoLower.includes("continua a transferir") || 
+    textoLower.includes("manuel") ||
+    textoLower.includes("continua a transferir") ||
     textoLower.includes("m-pesa")
   ) {
     return "M-Pesa";
   }
   if (
     (textoLower.includes("id da transacao") && textoLower.includes("transferiste") && textoLower.includes("e-mola")) ||
-    textoLower.includes("manuel zoca") || 
-    textoLower.includes("obrigado!") || 
+    textoLower.includes("manuel zoca") ||
+    textoLower.includes("obrigado!") ||
     textoLower.includes("e-mola")
   ) {
     return "E-Mola";
@@ -52,22 +52,20 @@ exports.handleMensagemPix = async (sock, msg) => {
     const numeroFormatado = remetente.replace(/[@:\s].*/g, "");
     const chaveUnica = `${from}:${remetente}:${messageId}`;
 
-    // Ignora mensagens já processadas
     if (mensagensProcessadas.has(chaveUnica)) return;
     mensagensProcessadas.add(chaveUnica);
 
-    // Se for o próprio bot, ignora
     const botJid = sock.user?.id || sock.authState.creds?.me?.id;
     if (remetente === botJid) {
       mensagensProcessadas.delete(chaveUnica);
       return;
     }
 
-    // Grupos permitidos
+    // ✅ Corrigido: vírgulas entre os grupos
     const gruposPermitidos = [
       "120363401150279870@g.us",
       "120363252308434038@g.us",
-      "120363417514741662@g.us"
+      "120363417514741662@g.us",
       "120363281867895477@g.us",
       "120363393526547408@g.us",
       "120363280798975952@g.us"
@@ -84,8 +82,6 @@ exports.handleMensagemPix = async (sock, msg) => {
 
     if (msg.message?.imageMessage) {
       isImageMessage = true;
-
-      // Baixa imagem e faz OCR
       const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image');
       let buffer = Buffer.alloc(0);
       for await (const chunk of stream) {
@@ -111,7 +107,6 @@ exports.handleMensagemPix = async (sock, msg) => {
 
     const textoLower = messageText.toLowerCase().replace(/\s+/g, ' ').trim();
 
-    // Palavras-chave para identificar comprovativo
     const operadoras = ['mpesa', 'emola', 'transferência'];
     const temOperadora = operadoras.some(op => textoLower.includes(op));
 
@@ -124,14 +119,12 @@ exports.handleMensagemPix = async (sock, msg) => {
 
     const numerosValidos = ['872960710', '848619531'];
 
-    // Verifica se é realmente um comprovativo válido
     if (!(temOperadora || regexValor || regexID || numerosValidos.includes(numeroOCR))) {
       console.log("📷 Mensagem ignorada - não parece ser um comprovativo válido.");
       mensagensProcessadas.delete(chaveUnica);
       return;
     }
 
-    // Valida número no texto
     const todosNumeros = [...textoLower.matchAll(/(?:\+?258)?(8\d{8})/g)].map(match => match[1]);
     const contemNumeroValido = todosNumeros.some(n => numerosValidos.includes(n));
 
@@ -154,7 +147,6 @@ exports.handleMensagemPix = async (sock, msg) => {
       return;
     }
 
-    // ✅ Reage com check
     await sock.sendMessage(from, {
       react: {
         text: "✅",
@@ -167,7 +159,6 @@ exports.handleMensagemPix = async (sock, msg) => {
 
     await new Promise(resolve => setTimeout(resolve, 20000));
 
-    // Monta resposta final
     let mensagem = `✅ *Comprovante recebido!*`;
 
     const valorMatch = textoLower.match(/transferiste\s+([\d.,]+)\s*mt/i);
@@ -198,5 +189,4 @@ exports.handleMensagemPix = async (sock, msg) => {
     const chaveUnica = `${msg.key.remoteJid}:${msg.key.participant || msg.key.remoteJid}:${msg.key.id}`;
     mensagensProcessadas.delete(chaveUnica);
   }
-
 };
